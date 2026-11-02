@@ -33,6 +33,7 @@ $desktopLinks = @{
     'Сеть выкл.lnk'   = @{ Args = "/c `"`"$root\off.bat`"`"`"";  Desc = 'Погасить TgWsProxy и туннель Notion' }
     'Сеть статус.lnk' = @{ Args = "/c `"`"$root\status.bat`"`""; Desc = 'Показать состояние компонентов' }
     'Notion.lnk'      = @{ Args = "/c `"`"$root\notion-window.bat`"`""; Desc = 'Notion в Firefox через туннель' }
+    'Запрет подобрать.lnk' = @{ Args = "/c `"`"$root\zapret\pick.bat`"`""; Desc = 'Перебрать профили zapret и включить рабочий (нужен админ)' }
 }
 $autostartLink = Join-Path $startup 'net-suite.lnk'
 $oldStartup = Join-Path $startup 'Notion tunnel.lnk'

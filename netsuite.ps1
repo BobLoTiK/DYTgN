@@ -1,7 +1,8 @@
 param(
-    [ValidateSet('on', 'off', 'status', 'ensure', 'restart')]
+    [ValidateSet('on', 'off', 'status', 'ensure', 'restart', 'zapret-fix')]
     [string]$Action = 'status',
-    [switch]$IncludeZapret
+    [switch]$IncludeZapret,
+    [switch]$FixZapret
 )
 
 # One switchboard for three separate things:
@@ -71,6 +72,22 @@ function Get-ZapretState {
     return 'stopped'
 }
 
+# Real check: winws may be alive while its profile no longer defeats DPI.
+function Get-ZapretHealth {
+    $check = Join-Path $root 'zapret\check.ps1'
+    if (-not (Test-Path $check)) { return $null }
+    try { return (& $check) } catch { return $null }
+}
+
+# Runs the picker with a UAC prompt (it needs admin to touch WinDivert and the service).
+function Invoke-ZapretFix {
+    $bat = Join-Path $root 'zapret\pick.bat'
+    if (-not (Test-Path $bat)) { Log 'zapret: picker not found' 'WARN'; return }
+    Log 'zapret: launching profile picker (confirm the UAC prompt)'
+    try { Start-Process -FilePath 'cmd.exe' -ArgumentList @('/c', ('"' + $bat + '"')) -Verb RunAs | Out-Null }
+    catch { Log ("zapret: elevation denied ({0})" -f $_.Exception.Message) 'WARN' }
+}
+
 function Start-Zapret {
     if (Get-ZapretState -eq 'running') { Log 'zapret: already running'; return $true }
     $svc = $cfg.components.zapret.service
@@ -84,6 +101,19 @@ function Start-Zapret {
         Log ("zapret: cannot start service ({0}). Run service.bat as administrator once." -f $_.Exception.Message) 'WARN'
     }
     Log 'zapret: NOT running' 'WARN'
+    return $false
+}
+
+# Called after zapret is up: if the profile stopped working, offer the picker.
+function Test-ZapretWorking {
+    $h = Get-ZapretHealth
+    if (-not $h) { return $true }
+    if ($h.State -eq 'ok') { Log ("zapret: healthy ({0})" -f $h.Targets); return $true }
+    Log ("zapret: {0} ({1})" -f $h.State, $h.Targets) 'WARN'
+    if ($h.State -eq 'dead') {
+        Log 'zapret: profile stopped defeating DPI, a different one is needed'
+        if ($FixZapret) { Invoke-ZapretFix } else { Log 'zapret: run zapret\pick.bat to test the profiles' 'WARN' }
+    }
     return $false
 }
 
@@ -175,12 +205,15 @@ function Show-Status {
     $tp = Test-Port $cfg.components.tgws.port
     $s = Test-Port $cfg.components.notion.socksPort
     $pac = Test-Url $cfg.components.notion.pacUrl 5
+    $zh = Get-ZapretHealth
+    $zDetail = 'service zapret'
+    if ($zh) { $zDetail = ("{0} | {1}" -f $zh.State, $zh.Targets) }
     $notion = ''
     if ($s) {
         $notion = & curl.exe -s -L -o NUL -w "%{http_code}" --max-time 12 --socks5-hostname ("127.0.0.1:{0}" -f $cfg.components.notion.socksPort) $cfg.components.notion.checkUrl 2>$null
     }
     $rows = @(
-        [pscustomobject]@{ Component = 'zapret (winws)'; State = $z; Detail = 'service zapret' }
+        [pscustomobject]@{ Component = 'zapret (winws)'; State = $z; Detail = $zDetail }
         [pscustomobject]@{ Component = 'TgWsProxy'; State = $(if ($t) { 'running' } else { 'stopped' }); Detail = ("port {0}: {1}" -f $cfg.components.tgws.port, $(if ($tp) { 'up' } else { 'closed' })) }
         [pscustomobject]@{ Component = 'notion tunnel'; State = $(if ($notion -eq '200') { 'ok' } elseif ($s) { 'degraded' } else { 'stopped' }); Detail = ("notion.com -> {0}" -f $(if ($notion) { $notion } else { 'n/a' })) }
         [pscustomobject]@{ Component = 'PAC server'; State = $(if ($pac) { 'ok' } else { 'down' }); Detail = $cfg.components.notion.pacUrl }
@@ -196,6 +229,7 @@ switch ($Action) {
     'on' {
         Log '=== bringing everything up ==='
         $null = Start-Zapret
+        $null = Test-ZapretWorking
         $null = Start-Tgws
         $null = Start-Notion
         if (-not (Repair-Notion)) { Log 'notion: still not working after repair attempt' 'WARN' }
@@ -205,6 +239,7 @@ switch ($Action) {
     'ensure' {
         # silent, idempotent - for autostart and the scheduled task
         $null = Start-Zapret
+        $null = Test-ZapretWorking
         $null = Start-Tgws
         $null = Start-Notion
         $null = Repair-Notion
@@ -216,10 +251,14 @@ switch ($Action) {
         Get-Process -Name 'sing-box', 'xray' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
         Start-Sleep -Seconds 2
         $null = Start-Zapret
+        $null = Test-ZapretWorking
         $null = Start-Tgws
         $null = Start-Notion
         Log '=== done ==='
         $null = Show-Status
+    }
+    'zapret-fix' {
+        Invoke-ZapretFix
     }
     'off' {
         Log '=== shutting down ==='
