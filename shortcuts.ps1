@@ -1,5 +1,9 @@
-﻿# Creates desktop shortcuts and the autostart entry for net-suite.
-# Run once after cloning/moving the repo:  powershell -ExecutionPolicy Bypass -File shortcuts.ps1
+﻿param(
+    [switch]$NoDesktop,
+    [switch]$NoAutostart,
+    [switch]$RemoveAll
+)
+# Creates (or removes) desktop shortcuts and the autostart entry for net-suite.
 # This file is UTF-8 WITH BOM on purpose: PowerShell 5.1 needs the BOM to read Cyrillic names.
 
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -21,15 +25,47 @@ function New-Link {
 }
 
 $cmd = "$env:WINDIR\System32\cmd.exe"
-$icon = 'C:\Program Files\Yandex\YandexBrowser\Application\browser.exe,0'
+$ff = 'C:\Program Files\Mozilla Firefox\firefox.exe,0'
+if (-not (Test-Path 'C:\Program Files\Mozilla Firefox\firefox.exe')) { $ff = "$env:WINDIR\System32\shell32.dll,13" }
 
-New-Link -Path (Join-Path $desk 'Сеть вкл.lnk')    -Target $cmd -Arguments "/c `"`"$root\on.bat`"`""     -Icon $icon -Description 'zapret + TgWsProxy + туннель Notion'
-New-Link -Path (Join-Path $desk 'Сеть выкл.lnk')   -Target $cmd -Arguments "/c `"`"$root\off.bat`"`"`"" -Icon $icon -Description 'Погасить TgWsProxy и туннель Notion'
-New-Link -Path (Join-Path $desk 'Сеть статус.lnk') -Target $cmd -Arguments "/c `"`"$root\status.bat`"`"" -Icon $icon -Description 'Показать состояние компонентов'
-New-Link -Path (Join-Path $desk 'Notion.lnk') -Target $cmd -Arguments "/c `"`"$root\notion-window.bat`"`"" -Icon $icon -Description 'Notion в отдельном окне через туннель'
+$desktopLinks = @{
+    'Сеть вкл.lnk'    = @{ Args = "/c `"`"$root\on.bat`"`"";     Desc = 'zapret + TgWsProxy + туннель Notion' }
+    'Сеть выкл.lnk'   = @{ Args = "/c `"`"$root\off.bat`"`"`"";  Desc = 'Погасить TgWsProxy и туннель Notion' }
+    'Сеть статус.lnk' = @{ Args = "/c `"`"$root\status.bat`"`""; Desc = 'Показать состояние компонентов' }
+    'Notion.lnk'      = @{ Args = "/c `"`"$root\notion-window.bat`"`""; Desc = 'Notion в Firefox через туннель' }
+}
+$autostartLink = Join-Path $startup 'net-suite.lnk'
+$oldStartup = Join-Path $startup 'Notion tunnel.lnk'
 
-New-Link -Path (Join-Path $startup 'net-suite.lnk') -Target "$env:WINDIR\System32\wscript.exe" -Arguments "`"$root\autostart.vbs`"" -Icon $icon -Description 'Запуск сетевого набора при входе'
+if ($RemoveAll) {
+    foreach ($name in $desktopLinks.Keys) {
+        $p = Join-Path $desk $name
+        if (Test-Path $p) { Remove-Item $p -Force; Write-Host ("removed: {0}" -f $p) }
+    }
+    if (Test-Path $autostartLink) { Remove-Item $autostartLink -Force; Write-Host ("removed: {0}" -f $autostartLink) }
+    return
+}
+
+if (-not $NoDesktop) {
+    foreach ($name in $desktopLinks.Keys) {
+        $info = $desktopLinks[$name]
+        New-Link -Path (Join-Path $desk $name) -Target $cmd -Arguments $info.Args -Icon $ff -Description $info.Desc
+    }
+}
+else {
+    foreach ($name in $desktopLinks.Keys) {
+        $p = Join-Path $desk $name
+        if (Test-Path $p) { Remove-Item $p -Force; Write-Host ("removed: {0}" -f $p) }
+    }
+}
+
+if (-not $NoAutostart) {
+    New-Link -Path $autostartLink -Target "$env:WINDIR\System32\wscript.exe" -Arguments "`"$root\autostart.vbs`"" -Icon $ff -Description 'Запуск сетевого набора при входе'
+}
+else {
+    if (Test-Path $autostartLink) { Remove-Item $autostartLink -Force; Write-Host ("removed: {0}" -f $autostartLink) }
+    else { Write-Host 'autostart entry: not present' }
+}
 
 # the old single-purpose autostart entry is superseded by net-suite
-$old = Join-Path $startup 'Notion tunnel.lnk'
-if (Test-Path $old) { Remove-Item $old -Force; Write-Host 'removed old startup link: Notion tunnel.lnk' }
+if (Test-Path $oldStartup) { Remove-Item $oldStartup -Force; Write-Host 'removed old startup link: Notion tunnel.lnk' }

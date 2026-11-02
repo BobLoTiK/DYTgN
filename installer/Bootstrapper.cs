@@ -3,8 +3,9 @@ using System.Diagnostics;
 using System.IO;
 
 // net-suite bootstrapper.
-// Downloads the repository (git clone, shallow) into %LOCALAPPDATA%\net-suite\app
-// and runs its setup.ps1. Re-running updates the existing copy and re-runs setup.
+// 1) clones/updates the repository into %LOCALAPPDATA%\net-suite\app
+// 2) asks what to create (desktop shortcuts, autostart) and whether to start now
+// 3) runs setup.ps1 with those answers and shows the result
 
 class Program
 {
@@ -13,75 +14,80 @@ class Program
 
     static int Main(string[] args)
     {
-        Console.OutputEncoding = System.Text.Encoding.UTF8;
+        try { Console.OutputEncoding = System.Text.Encoding.UTF8; } catch { }
+
         try
         {
             string root = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "net-suite");
             string target = Path.Combine(root, "app");
+            string setup = Path.Combine(target, "setup.ps1");
 
             Console.WriteLine();
             Console.WriteLine("  net-suite installer");
             Console.WriteLine("  -------------------");
-            Console.WriteLine("  installing to: " + target);
+            Console.WriteLine("  folder: " + target);
             Console.WriteLine();
 
-            if (File.Exists(Path.Combine(target, "setup.ps1")))
+            bool existing = File.Exists(setup);
+            if (existing)
             {
-                Console.WriteLine("[1/3] existing copy found, updating");
+                Console.WriteLine("[1/3] repo already here, updating");
                 int upd = Run("git", "-C \"" + target + "\" pull --ff-only", null);
-                if (upd != 0)
-                {
-                    Console.WriteLine("      update skipped (needs git credentials or no changes)");
-                }
+                if (upd != 0) Console.WriteLine("      update skipped (offline or git needs access)");
             }
             else
             {
-                Console.WriteLine("[1/3] downloading repository (about 130 MB, once)");
+                Console.WriteLine("[1/3] downloading repo, ~130 MB, once");
                 Directory.CreateDirectory(target);
                 int rc = Run("git", "clone --depth 1 \"" + RepoUrl + "\" \"" + target + "\"", null);
-                if (rc != 0)
+                if (rc != 0 || !File.Exists(setup))
                 {
                     Console.WriteLine();
-                    Console.WriteLine("  Clone failed. Either git is not installed, or this account");
-                    Console.WriteLine("  has no access to the repository.");
-                    Console.WriteLine();
+                    Console.WriteLine("  Clone failed: git is missing or this account has no access.");
                     Console.WriteLine("  Fallback: download " + ZipUrl);
-                    Console.WriteLine("  unpack it anywhere and run install.bat from there.");
+                    Console.WriteLine("  unpack anywhere and run install.bat from that folder.");
                     Pause();
                     return 1;
                 }
             }
 
-            string setup = Path.Combine(target, "setup.ps1");
-            if (!File.Exists(setup))
-            {
-                Console.WriteLine("  setup.ps1 is missing in " + target);
-                Pause();
-                return 1;
-            }
+            Console.WriteLine();
+            Console.WriteLine("[2/3] a few questions, Enter = yes");
+            Console.WriteLine();
+            bool desk = Ask("  Ярлыки на рабочем столе (Сеть вкл / выкл / статус / Notion)?", true);
+            bool auto = Ask("  Добавить в автозапуск при входе в Windows?", true);
+            bool task = Ask("  Проверять туннель каждые 10 минут (задача планировщика)?", true);
+            bool start = Ask("  Запустить всё сразу?", true);
+
+            string psArgs = "-NoProfile -ExecutionPolicy Bypass -File \"" + setup + "\"";
+            if (!desk) psArgs += " -NoDesktop";
+            if (!auto) psArgs += " -NoAutostart";
+            if (!task) psArgs += " -NoTask";
+            if (!start) psArgs += " -NoStart";
 
             Console.WriteLine();
-            Console.WriteLine("[2/3] running setup");
+            Console.WriteLine("[3/3] installing");
             Console.WriteLine();
-            int rc2 = Run("powershell.exe",
-                "-NoProfile -ExecutionPolicy Bypass -File \"" + setup + "\"", target);
+            int rc2 = Run("powershell.exe", psArgs, target);
+
+            Console.WriteLine();
             if (rc2 != 0)
             {
-                Console.WriteLine();
-                Console.WriteLine("  setup finished with code " + rc2 + ", check the log in");
-                Console.WriteLine("  " + Path.Combine(target, "logs"));
-                Pause();
-                return rc2;
+                Console.WriteLine("  setup finished with code " + rc2);
+                Console.WriteLine("  log: " + Path.Combine(target, "logs"));
             }
-
-            Console.WriteLine();
-            Console.WriteLine("[3/3] done");
-            Console.WriteLine("  desktop: Net ON / Net OFF / Net STATUS / Notion");
-            Console.WriteLine("  logs:    " + Path.Combine(target, "logs"));
+            else
+            {
+                Console.WriteLine("  done");
+                Console.WriteLine("  folder:  " + target);
+                Console.WriteLine("  start:   on.bat      stop: off.bat     state: status.bat");
+                if (auto) Console.WriteLine("  autostart: on (remove net-suite.lnk from Startup to undo)");
+                if (!desk) Console.WriteLine("  shortcuts: not created");
+            }
             Pause();
-            return 0;
+            return rc2;
         }
         catch (Exception ex)
         {
@@ -89,6 +95,17 @@ class Program
             Pause();
             return 1;
         }
+    }
+
+    static bool Ask(string question, bool def)
+    {
+        Console.Write(question + (def ? " [Y/n] " : " [y/N] "));
+        string s = Console.ReadLine();
+        if (string.IsNullOrWhiteSpace(s)) return def;
+        s = s.Trim().ToLowerInvariant();
+        if (s == "y" || s == "yes" || s == "д" || s == "да" || s == "1" || s == "+") return true;
+        if (s == "n" || s == "no" || s == "н" || s == "нет" || s == "0" || s == "-") return false;
+        return def;
     }
 
     static int Run(string exe, string arguments, string workdir)

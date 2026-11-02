@@ -1,4 +1,10 @@
-param([switch]$SkipStart)
+param(
+    [switch]$SkipStart,
+    [switch]$NoStart,
+    [switch]$NoDesktop,
+    [switch]$NoAutostart,
+    [switch]$NoTask
+)
 # One-time (or repeatable) setup: makes this folder self-sufficient and starts everything.
 # Safe to re-run: it only fills in what is missing.
 
@@ -76,17 +82,29 @@ else {
 
 Say '=== 5/5 shortcuts, autostart, scheduled task ==='
 $sc = Join-Path $root 'shortcuts.ps1'
-if (Test-Path $sc) { & powershell -NoProfile -ExecutionPolicy Bypass -File $sc }
+if (Test-Path $sc) {
+    $scArgs = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $sc)
+    if ($NoDesktop) { $scArgs += '-NoDesktop' }
+    if ($NoAutostart) { $scArgs += '-NoAutostart' }
+    & powershell @scArgs
+}
 
-$taskAction = "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$notion\watch.ps1`""
-& schtasks /create /tn 'NotionTunnelKeepalive' /tr $taskAction /sc minute /mo 10 /f 2>&1 | Out-Null
-Say '  keepalive task: every 10 minutes'
+if ($NoTask) {
+    Say '  keepalive task: skipped'
+}
+else {
+    $taskAction = "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$notion\watch.ps1`""
+    & schtasks /create /tn 'NotionTunnelKeepalive' /tr $taskAction /sc minute /mo 10 /f 2>&1 | Out-Null
+    Say '  keepalive task: every 10 minutes'
+}
 
-if (-not $SkipStart) {
+if (-not $SkipStart -and -not $NoStart) {
     Say ''
     Say '=== starting everything ==='
     & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root 'netsuite.ps1') -Action on
 }
 
 Say ''
-Say 'Done. Desktop shortcuts: "Net ON", "Net OFF", "Net STATUS" (or their Russian names).'
+Say ("installed in: {0}" -f $root)
+Say 'actions: on.bat (start), off.bat (stop), status.bat (state)'
+Say 'to undo autostart: remove net-suite.lnk from the Startup folder'
