@@ -114,6 +114,25 @@ function Test-ZapretWorking {
         Log 'zapret: profile stopped defeating DPI, a different one is needed'
         if ($FixZapret) { Invoke-ZapretFix } else { Log 'zapret: run zapret\pick.bat to test the profiles' 'WARN' }
     }
+    if ($h.State -eq 'off') {
+        Log 'zapret: service is not running; zapret\start.bat starts it (one UAC click)' 'WARN'
+    }
+    return $false
+}
+
+# Starts the zapret service with a UAC prompt (it needs admin). Returns $true when winws came up.
+function Invoke-ZapretStart {
+    $bat = Join-Path $root 'zapret\start.bat'
+    if (-not (Test-Path $bat)) { Log 'zapret: start.bat not found' 'WARN'; return $false }
+    Log 'zapret: service is down, asking for admin to start it'
+    try { Start-Process -FilePath 'cmd.exe' -ArgumentList @('/c', ('"' + $bat + '"')) -Verb RunAs -Wait | Out-Null }
+    catch { Log ("zapret: elevation denied ({0})" -f $_.Exception.Message) 'WARN'; return $false }
+    $deadline = (Get-Date).AddSeconds(12)
+    while ((Get-Date) -lt $deadline) {
+        if (Test-Process $cfg.components.zapret.process) { Log 'zapret: started after elevation'; return $true }
+        Start-Sleep -Milliseconds 700
+    }
+    Log 'zapret: still not running after elevation' 'WARN'
     return $false
 }
 
@@ -207,7 +226,11 @@ function Show-Status {
     $pac = Test-Url $cfg.components.notion.pacUrl 5
     $zh = Get-ZapretHealth
     $zDetail = 'service zapret'
-    if ($zh) { $zDetail = ("{0} | {1}" -f $zh.State, $zh.Targets) }
+    if ($zh) {
+        $zDetail = ("{0} | {1}" -f $zh.State, $zh.Targets)
+        if ($zh.State -eq 'off') { $zDetail += ' | start: zapret\start.bat' }
+        elseif ($zh.State -eq 'dead') { $zDetail += ' | needs another profile: zapret\pick.bat' }
+    }
     $notion = ''
     if ($s) {
         $notion = & curl.exe -s -L -o NUL -w "%{http_code}" --max-time 12 --socks5-hostname ("127.0.0.1:{0}" -f $cfg.components.notion.socksPort) $cfg.components.notion.checkUrl 2>$null
@@ -228,7 +251,8 @@ switch ($Action) {
     }
     'on' {
         Log '=== bringing everything up ==='
-        $null = Start-Zapret
+        $zap = Start-Zapret
+        if (-not (Test-Process $cfg.components.zapret.process)) { $zap = Invoke-ZapretStart }
         $null = Test-ZapretWorking
         $null = Start-Tgws
         $null = Start-Notion
