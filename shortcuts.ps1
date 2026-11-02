@@ -26,6 +26,7 @@ $icon = 'C:\Program Files\Yandex\YandexBrowser\Application\browser.exe,0'
 New-Link -Path (Join-Path $desk 'Сеть вкл.lnk')    -Target $cmd -Arguments "/c `"`"$root\on.bat`"`""     -Icon $icon -Description 'zapret + TgWsProxy + туннель Notion'
 New-Link -Path (Join-Path $desk 'Сеть выкл.lnk')   -Target $cmd -Arguments "/c `"`"$root\off.bat`"`"`"" -Icon $icon -Description 'Погасить TgWsProxy и туннель Notion'
 New-Link -Path (Join-Path $desk 'Сеть статус.lnk') -Target $cmd -Arguments "/c `"`"$root\status.bat`"`"" -Icon $icon -Description 'Показать состояние компонентов'
+New-Link -Path (Join-Path $desk 'Notion.lnk') -Target $cmd -Arguments "/c `"`"$root\notion-window.bat`"`"" -Icon $icon -Description 'Notion в отдельном окне через туннель'
 
 New-Link -Path (Join-Path $startup 'net-suite.lnk') -Target "$env:WINDIR\System32\wscript.exe" -Arguments "`"$root\autostart.vbs`"" -Icon $icon -Description 'Запуск сетевого набора при входе'
 

@@ -1,0 +1,40 @@
+{
+    "log":  {
+                "level":  "info",
+                "output":  "C:\\Users\\Максим\\AppData\\Local\\notion-vpn\\sb.log",
+                "timestamp":  true
+            },
+    "inbounds":  [
+                     {
+                         "type":  "socks",
+                         "tag":  "in-socks",
+                         "listen":  "127.0.0.1",
+                         "listen_port":  10808
+                     },
+                     {
+                         "type":  "http",
+                         "tag":  "in-http",
+                         "listen":  "127.0.0.1",
+                         "listen_port":  10809
+                     }
+                 ],
+    "outbounds":  [
+                      {
+                          "type":  "tuic",
+                          "tag":  "proxy",
+                          "server":  "de0bc027-teisg0-thtg7i-1lkt0.jp5.hyhuawei.com",
+                          "server_port":  443,
+                          "uuid":  "cd1b0ae0-4010-11ee-953a-f23c9164ca5d",
+                          "password":  "cd1b0ae0-4010-11ee-953a-f23c9164ca5d",
+                          "congestion_control":  "bbr",
+                          "udp_relay_mode":  "native",
+                          "tls":  {
+                                      "enabled":  true,
+                                      "server_name":  "de0bc027-teisg0-thtg7i-1lkt0.jp5.hyhuawei.com",
+                                      "alpn":  [
+                                                   "h3"
+                                               ]
+                                  }
+                      }
+                  ]
+}

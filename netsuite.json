@@ -10,20 +10,20 @@
     "tgws": {
       "enabled": true,
       "process": "TgWsProxy_windows",
-      "exe": "%LOCALAPPDATA%\\net-suite\\bin\\TgWsProxy_windows.exe",
+      "exe": "%REPO%\\bin\\TgWsProxy_windows.exe",
       "port": 1443,
       "waitSeconds": 15,
       "note": "MTProto to WebSocket bridge for Telegram on 127.0.0.1:1443. Settings in %APPDATA%\\TgWsProxy\\config.json."
     },
     "notion": {
       "enabled": true,
-      "folder": "%LOCALAPPDATA%\\notion-vpn",
+      "folder": "%REPO%\\notion",
       "boot": "boot.vbs",
       "watch": "watch.ps1",
       "socksPort": 10808,
       "pacUrl": "http://127.0.0.1:10810/proxy.pac",
       "checkUrl": "https://www.notion.com/",
-      "note": "sing-box TUIC tunnel + PAC server. socks 127.0.0.1:10808, PAC on 127.0.0.1:10810."
+      "note": "sing-box TUIC tunnel + PAC server. Binaries in ..\\bin, node config in sb-config.json."
     }
   }
 }

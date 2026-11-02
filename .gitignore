@@ -1,3 +1,6 @@
 logs/
 *.log
-bin/
+notion/*.log
+notion/*.bak
+notion-window-profile/
+*.old

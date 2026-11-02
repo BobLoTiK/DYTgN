@@ -19,6 +19,7 @@ $cfg = Get-Content (Join-Path $root 'netsuite.json') -Raw | ConvertFrom-Json
 # and works regardless of the Cyrillic user/profile names on disk.
 function Expand-Path([string]$p) {
     if (-not $p) { return $p }
+    $p = $p.Replace('%REPO%', $root)
     $p = $p.Replace('%LOCALAPPDATA%', $env:LOCALAPPDATA)
     $p = $p.Replace('%APPDATA%', $env:APPDATA)
     $p = $p.Replace('%USERPROFILE%', $env:USERPROFILE)
@@ -134,6 +135,7 @@ function Start-Notion {
             Start-Sleep -Seconds 5
         }
     }
+    Ensure-SystemPac
     return (Test-Port $c.socksPort)
 }
 
@@ -148,6 +150,21 @@ function Repair-Notion {
     }
     $code = & curl.exe -s -L -o NUL -w "%{http_code}" --max-time 15 --socks5-hostname ("127.0.0.1:{0}" -f $c.socksPort) $c.checkUrl 2>$null
     return ($code -eq '200')
+}
+
+# Firefox (network.proxy.type=5, the default) and WinINET apps read the PAC from
+# this registry value, so it has to stay pointed at our local PAC server.
+function Ensure-SystemPac {
+    $want = $cfg.components.notion.pacUrl
+    $key = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings'
+    try {
+        $cur = (Get-ItemProperty -Path $key -Name AutoConfigURL -ErrorAction SilentlyContinue).AutoConfigURL
+        if ($cur -ne $want) {
+            Set-ItemProperty -Path $key -Name AutoConfigURL -Value $want -ErrorAction Stop
+            Log ("pac: AutoConfigURL -> {0} (was '{1}')" -f $want, $cur)
+        }
+    }
+    catch { Log ("pac: cannot set AutoConfigURL: {0}" -f $_.Exception.Message) 'WARN' }
 }
 
 # ---------------- actions ----------------
