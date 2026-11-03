@@ -93,9 +93,10 @@ if ($NoTask) {
     Say '  keepalive task: skipped'
 }
 else {
-    $taskAction = "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$notion\watch.ps1`""
+    # wscript has no console, so no window flashes every 10 minutes
+    $taskAction = 'wscript.exe "' + (Join-Path $notion 'hidden-watch.vbs') + '"'
     & schtasks /create /tn 'NotionTunnelKeepalive' /tr $taskAction /sc minute /mo 10 /f 2>&1 | Out-Null
-    Say '  keepalive task: every 10 minutes'
+    Say '  keepalive task: every 10 minutes (hidden)'
 }
 
 if (-not $SkipStart -and -not $NoStart) {
