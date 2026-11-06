@@ -39,7 +39,7 @@ function Get-ZapretFolder {
     $cfgPath = Join-Path $root 'netsuite.json'
     $cfg = Get-Content $cfgPath -Raw | ConvertFrom-Json
     $p = $cfg.components.zapret.folder
-    $p = $p.Replace('%LOCALAPPDATA%', $env:LOCALAPPDATA).Replace('%APPDATA%', $env:APPDATA).Replace('%DOCUMENTS%', [Environment]::GetFolderPath('MyDocuments'))
+    $p = $p.Replace('%REPO%', $root).Replace('%LOCALAPPDATA%', $env:LOCALAPPDATA).Replace('%APPDATA%', $env:APPDATA).Replace('%DOCUMENTS%', [Environment]::GetFolderPath('MyDocuments'))
     return $p
 }
 
