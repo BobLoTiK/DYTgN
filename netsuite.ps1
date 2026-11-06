@@ -1,5 +1,5 @@
 param(
-    [ValidateSet('on', 'off', 'status', 'ensure', 'restart', 'zapret-fix')]
+    [ValidateSet('on', 'off', 'status', 'ensure', 'restart', 'auto', 'zapret-fix')]
     [string]$Action = 'status',
     [switch]$IncludeZapret,
     [switch]$FixZapret
@@ -136,6 +136,22 @@ function Invoke-ZapretStart {
     return $false
 }
 
+# One elevated pass that starts the service and, if the profile is dead, installs
+# the first profile that actually works (zapret\fix.ps1).
+function Invoke-ZapretFastFix {
+    $ps1 = Join-Path $root 'zapret\fix.ps1'
+    if (-not (Test-Path $ps1)) { Log 'zapret: fix.ps1 not found' 'WARN'; return $false }
+    Log 'zapret: repairing (start service, pick first working profile) - confirm UAC'
+    try {
+        Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $ps1) -Verb RunAs -Wait | Out-Null
+    }
+    catch { Log ("zapret: elevation denied ({0})" -f $_.Exception.Message) 'WARN'; return $false }
+    $h = Get-ZapretHealth
+    if ($h -and $h.State -eq 'ok') { Log ("zapret: fixed ({0})" -f $h.Targets); return $true }
+    if ($h) { Log ("zapret: still {0} ({1})" -f $h.State, $h.Targets) 'WARN' }
+    return $false
+}
+
 # ---------------- TgWsProxy ----------------
 
 function Start-Tgws {
@@ -256,6 +272,19 @@ switch ($Action) {
         $null = Test-ZapretWorking
         $null = Start-Tgws
         $null = Start-Notion
+        if (-not (Repair-Notion)) { Log 'notion: still not working after repair attempt' 'WARN' }
+        Log '=== done ==='
+        $null = Show-Status
+    }
+    'auto' {
+        # one click: start what is missing, verify zapret, repair its profile if needed
+        Log '=== auto: checking and starting ==='
+        $null = Start-Tgws
+        $null = Start-Notion
+        $h = Get-ZapretHealth
+        if ($h -and $h.State -eq 'ok') { Log ("zapret: healthy ({0})" -f $h.Targets) }
+        elseif ($h -and $h.State -eq 'no-internet') { Log 'zapret: no internet at all, nothing to fix' 'WARN' }
+        else { $null = Invoke-ZapretFastFix }
         if (-not (Repair-Notion)) { Log 'notion: still not working after repair attempt' 'WARN' }
         Log '=== done ==='
         $null = Show-Status

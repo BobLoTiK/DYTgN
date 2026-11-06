@@ -12,6 +12,7 @@
 param(
     [switch]$DryRun,
     [switch]$NoService,
+    [switch]$First,
     [int]$SettleSeconds = 5,
     [string[]]$Targets = @('https://www.youtube.com/', 'https://discord.com/'),
     [string]$ServiceName = 'zapret'
@@ -111,6 +112,7 @@ foreach ($p in $profiles) {
     $ok = @($Targets | Where-Object { Test-Http $_ })
     Log ("  winws pid {0}, targets {1}/{2}" -f $proc.ProcessId, $ok.Count, $Targets.Count)
     $results += [pscustomobject]@{ Profile = $p.Name; Score = $ok.Count; Cmd = $proc.CommandLine; Detail = ($ok -join ' ') }
+    if ($First -and $ok.Count -eq $Targets.Count) { Log '  first working profile found, stopping the loop'; break }
 }
 
 Stop-Winws

@@ -1,7 +1,8 @@
 ﻿param(
     [switch]$NoDesktop,
     [switch]$NoAutostart,
-    [switch]$RemoveAll
+    [switch]$RemoveAll,
+    [string]$Icon
 )
 # Creates (or removes) desktop shortcuts and the autostart entry for net-suite.
 # This file is UTF-8 WITH BOM on purpose: PowerShell 5.1 needs the BOM to read Cyrillic names.
@@ -25,15 +26,21 @@ function New-Link {
 }
 
 $cmd = "$env:WINDIR\System32\cmd.exe"
-$ff = 'C:\Program Files\Mozilla Firefox\firefox.exe,0'
-if (-not (Test-Path 'C:\Program Files\Mozilla Firefox\firefox.exe')) { $ff = "$env:WINDIR\System32\shell32.dll,13" }
+
+# default icon ships in the repo (icons\*.ico); override with -Icon "<path>,0"
+$appIcon = $Icon
+if (-not $appIcon) {
+    $candidate = Join-Path $root 'icons\A-shield-bolt.ico'
+    if (Test-Path $candidate) { $appIcon = $candidate }
+}
+if (-not $appIcon) { $appIcon = "$env:WINDIR\System32\shell32.dll,13" }
 
 $desktopLinks = @{
-    'Сеть вкл.lnk'    = @{ Args = "/c `"`"$root\on.bat`"`"";     Desc = 'zapret + TgWsProxy + туннель Notion' }
-    'Сеть выкл.lnk'   = @{ Args = "/c `"`"$root\off.bat`"`"`"";  Desc = 'Погасить TgWsProxy и туннель Notion' }
-    'Сеть статус.lnk' = @{ Args = "/c `"`"$root\status.bat`"`""; Desc = 'Показать состояние компонентов' }
+    'Сеть вкл.lnk'    = @{ Args = "/c `"`"$root\auto.bat`"`"";      Desc = 'Проверить всё, подобрать рабочий профиль zapret и включить' }
+    'Сеть выкл.lnk'   = @{ Args = "/c `"`"$root\off.bat`"`"`"";     Desc = 'Погасить TgWsProxy и туннель Notion' }
+    'Сеть статус.lnk' = @{ Args = "/c `"`"$root\status.bat`"`"";    Desc = 'Показать состояние компонентов' }
     'Notion.lnk'      = @{ Args = "/c `"`"$root\notion-window.bat`"`""; Desc = 'Notion в Firefox через туннель' }
-    'Запрет подобрать.lnk' = @{ Args = "/c `"`"$root\zapret\pick.bat`"`""; Desc = 'Перебрать профили zapret и включить рабочий (нужен админ)' }
+    'Запрет подобрать.lnk' = @{ Args = "/c `"`"$root\zapret\pick.bat`"`""; Desc = 'Перебрать все профили zapret и включить лучший (нужен админ)' }
 }
 $autostartLink = Join-Path $startup 'net-suite.lnk'
 $oldStartup = Join-Path $startup 'Notion tunnel.lnk'
@@ -50,7 +57,9 @@ if ($RemoveAll) {
 if (-not $NoDesktop) {
     foreach ($name in $desktopLinks.Keys) {
         $info = $desktopLinks[$name]
-        New-Link -Path (Join-Path $desk $name) -Target $cmd -Arguments $info.Args -Icon $ff -Description $info.Desc
+        $ico = $appIcon
+        if ($info.Icon) { $ico = $info.Icon }
+        New-Link -Path (Join-Path $desk $name) -Target $cmd -Arguments $info.Args -Icon $ico -Description $info.Desc
     }
 }
 else {
@@ -61,7 +70,7 @@ else {
 }
 
 if (-not $NoAutostart) {
-    New-Link -Path $autostartLink -Target "$env:WINDIR\System32\wscript.exe" -Arguments "`"$root\autostart.vbs`"" -Icon $ff -Description 'Запуск сетевого набора при входе'
+    New-Link -Path $autostartLink -Target "$env:WINDIR\System32\wscript.exe" -Arguments "`"$root\autostart.vbs`"" -Icon $appIcon -Description 'Запуск сетевого набора при входе'
 }
 else {
     if (Test-Path $autostartLink) { Remove-Item $autostartLink -Force; Write-Host ("removed: {0}" -f $autostartLink) }
