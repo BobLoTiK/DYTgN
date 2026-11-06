@@ -37,7 +37,18 @@ function Get-GithubAsset {
     catch { Say ("  download failed: {0}" -f $_.Exception.Message); return $false }
 }
 
-Say '=== 1/5 sing-box ==='
+Say '=== 1/6 zapret (DPI bypass) ==='
+$zdir = Join-Path $root 'zapret\discord-youtube-1.9.9d'
+if (Test-Path (Join-Path $zdir 'bin\winws.exe')) {
+    Say '  ok, package is in the repo'
+    $ip = (Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Services\zapret' -Name ImagePath -ErrorAction SilentlyContinue).ImagePath
+    if ($ip -and -not ($ip -like ('*' + $zdir + '*'))) {
+        Say '  the zapret service points at another folder - run zapret\relink.bat once (UAC)'
+    }
+}
+else { Say '  package missing from the repo, get it again (git pull)' }
+
+Say '=== 2/6 sing-box ==='
 $sbExe = Join-Path $bin 'sing-box.exe'
 if (Test-Path $sbExe) { Say '  ok, already present' }
 else {
@@ -45,7 +56,7 @@ else {
     $null = Get-GithubAsset -Repo 'SagerNet/sing-box' -Pattern 'windows-amd64\.zip$' -OutFile $sbExe
 }
 
-Say '=== 2/5 xray (fallback engine) ==='
+Say '=== 3/6 xray (fallback engine) ==='
 $xrayExe = Join-Path $bin 'xray.exe'
 if (Test-Path $xrayExe) { Say '  ok, already present' }
 else {
@@ -53,7 +64,7 @@ else {
     $null = Get-GithubAsset -Repo 'XTLS/Xray-core' -Pattern 'Xray-windows-64\.zip$' -OutFile $xrayExe
 }
 
-Say '=== 3/5 TgWsProxy ==='
+Say '=== 4/6 TgWsProxy ==='
 $tgExe = Join-Path $bin 'TgWsProxy_windows.exe'
 if (Test-Path $tgExe) { Say '  ok, already present' }
 else {
@@ -70,7 +81,7 @@ else {
     }
 }
 
-Say '=== 4/5 node for the Notion tunnel ==='
+Say '=== 5/6 node for the Notion tunnel ==='
 $cfg = Join-Path $notion 'sb-config.json'
 if (Test-Path $cfg) { Say '  ok, sb-config.json already present' }
 else {
@@ -80,7 +91,7 @@ else {
     if (Test-Path $cfg) { Say '  node found and saved' } else { Say '  no working node right now - the tunnel will retry later' }
 }
 
-Say '=== 5/5 shortcuts, autostart, scheduled task ==='
+Say '=== 6/6 shortcuts, autostart, scheduled task ==='
 $sc = Join-Path $root 'shortcuts.ps1'
 if (Test-Path $sc) {
     $scArgs = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $sc)

@@ -4,8 +4,9 @@
       "enabled": true,
       "process": "winws",
       "service": "zapret",
-      "folder": "%DOCUMENTS%\\zapret-discord-youtube-1.9.9d\\zapret-discord-youtube-1.9.9d",
-      "note": "winws.exe runs from the zapret service. Starting the service needs admin, so supervisor only checks it."
+      "folder": "%REPO%\\zapret\\discord-youtube-1.9.9d",
+      "fallbackFolder": "%DOCUMENTS%\\zapret-discord-youtube-1.9.9d\\zapret-discord-youtube-1.9.9d",
+      "note": "Full zapret-discord-youtube 1.9.9d package ships inside the repo; an older external copy is used only if it exists and the service still points there."
     },
     "tgws": {
       "enabled": true,

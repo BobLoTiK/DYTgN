@@ -32,6 +32,26 @@
 | ноды | `notion\build-tuic.ps1`, `build.ps1` | ищет и проверяет бесплатные ноды, пишет `sb-config.json` |
 | установщик | `dist\net-suite-setup.exe` | клон репо в `%LOCALAPPDATA%\net-suite\app` + установка |
 | zapret | `zapret\check.ps1`, `pick.ps1`, `start.bat` | проверка профиля, подбор рабочего, запуск службы |
+| запрет целиком | `zapret\discord-youtube-1.9.9d\` | пакет zapret-discord-youtube 1.9.9d: 20 профилей, `bin\winws.exe`, `lists\`, `service.bat` |
+
+## Запрет лежит в репозитории
+
+Пакет `zapret-discord-youtube-1.9.9d` (46 файлов, ~3.8 МБ) лежит прямо в репозитории —
+`zapret\discord-youtube-1.9.9d\`: все профили `general*.bat`, `bin\winws.exe` с WinDivert,
+списки `lists\`, `service.bat`, лицензия авторов и `SHA256SUMS.txt`. Ничего скачивать
+и искать по диску не нужно.
+
+Служба `zapret` запускает `winws.exe` из этой папки. Если служба всё ещё указывает на
+старую внешнюю копию (`Документы\zapret-discord-youtube-1.9.9d\...`), один раз запусти
+`zapret\relink.bat` — он с админом перепишет путь службы и перезапустит её. Проверить,
+куда смотрит служба, можно и без админа:
+
+```powershell
+(Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Services\zapret' -Name ImagePath).ImagePath
+```
+
+`setup.ps1` на первом шаге сам проверяет, что `bin\winws.exe` на месте и что служба
+смотрит именно в репозиторий.
 
 ## Если Discord или YouTube не открываются
 
