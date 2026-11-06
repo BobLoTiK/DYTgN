@@ -30,7 +30,7 @@ $cmd = "$env:WINDIR\System32\cmd.exe"
 # default icon ships in the repo (icons\*.ico); override with -Icon "<path>,0"
 $appIcon = $Icon
 if (-not $appIcon) {
-    $candidate = Join-Path $root 'icons\A-shield-bolt.ico'
+    $candidate = Join-Path $root 'icons\E-power-wifi.ico'
     if (Test-Path $candidate) { $appIcon = $candidate }
 }
 if (-not $appIcon) { $appIcon = "$env:WINDIR\System32\shell32.dll,13" }

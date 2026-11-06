@@ -1,8 +1,6 @@
 {
     "log":  {
-                "level":  "info",
-                "output":  "C:\\Users\\Максим\\AppData\\Local\\notion-vpn\\sb.log",
-                "timestamp":  true
+                "level":  "warn"
             },
     "inbounds":  [
                      {
@@ -20,21 +18,20 @@
                  ],
     "outbounds":  [
                       {
-                          "type":  "tuic",
+                          "type":  "hysteria2",
                           "tag":  "proxy",
-                          "server":  "de0bc027-teisg0-thtg7i-1lkt0.jp5.hyhuawei.com",
+                          "server":  "204.152.221.177",
                           "server_port":  443,
-                          "uuid":  "cd1b0ae0-4010-11ee-953a-f23c9164ca5d",
-                          "password":  "cd1b0ae0-4010-11ee-953a-f23c9164ca5d",
-                          "congestion_control":  "bbr",
-                          "udp_relay_mode":  "native",
+                          "password":  "GnVqzYNYGYRXNUq8fBOxGsv9pNBdYvKP",
                           "tls":  {
                                       "enabled":  true,
-                                      "server_name":  "de0bc027-teisg0-thtg7i-1lkt0.jp5.hyhuawei.com",
-                                      "alpn":  [
-                                                   "h3"
-                                               ]
-                                  }
+                                      "server_name":  "www.bing.com",
+                                      "insecure":  true
+                                  },
+                          "obfs":  {
+                                       "type":  "salamander",
+                                       "password":  "0Jy/BjMrgPxwRG9bx+YIyZz2hqUfE7Cf"
+                                   }
                       }
                   ]
 }
