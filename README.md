@@ -30,7 +30,7 @@
 | `netsuite.ps1` | корень | вся логика: on / off / status / ensure / restart |
 | PAC-сервер | `notion\pacsrv.ps1` | `http://127.0.0.1:10810/proxy.pac` — через туннель только домены Notion |
 | ноды | `notion\build-tuic.ps1`, `build.ps1` | ищет и проверяет бесплатные ноды, пишет `sb-config.json` |
-| установщик | `dist\net-suite-setup.exe` | клон репо в `%LOCALAPPDATA%\net-suite\app` + установка |
+| установщик | `dist\net-suite-setup.exe` (пересобрать: `installer\build.ps1`) | клон репо в `%LOCALAPPDATA%\net-suite\app` + установка |
 | zapret | `zapret\check.ps1`, `pick.ps1`, `start.bat` | проверка профиля, подбор рабочего, запуск службы |
 | запрет целиком | `zapret\discord-youtube-1.9.9d\` | пакет zapret-discord-youtube 1.9.9d: 20 профилей, `bin\winws.exe`, `lists\`, `service.bat` |
 | иконки | `icons\*.ico`, `icons\contact-sheet.png` | варианты иконки для ярлыков, `make_icons.py` их перерисовывает |

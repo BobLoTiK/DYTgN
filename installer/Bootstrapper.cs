@@ -27,6 +27,8 @@ class Program
             Console.WriteLine();
             Console.WriteLine("  net-suite installer");
             Console.WriteLine("  -------------------");
+            Console.WriteLine("  sets up zapret DPI bypass, TgWsProxy and the Notion tunnel,");
+            Console.WriteLine("  then puts a window over all of it: gui\\NetSuite.exe");
             Console.WriteLine("  folder: " + target);
             Console.WriteLine();
 
@@ -46,6 +48,7 @@ class Program
                 {
                     Console.WriteLine();
                     Console.WriteLine("  Clone failed: git is missing or this account has no access.");
+                    Console.WriteLine("  The repo is public, so git needs no account - only git itself.");
                     Console.WriteLine("  Fallback: download " + ZipUrl);
                     Console.WriteLine("  unpack anywhere and run install.bat from that folder.");
                     Pause();
@@ -82,7 +85,8 @@ class Program
             {
                 Console.WriteLine("  done");
                 Console.WriteLine("  folder:  " + target);
-                Console.WriteLine("  start:   on.bat      stop: off.bat     state: status.bat");
+                Console.WriteLine("  window:  gui\\NetSuite.exe   (or the shortcut on the desktop)");
+                Console.WriteLine("  no window needed: on.bat / off.bat / status.bat");
                 if (auto) Console.WriteLine("  autostart: on (remove net-suite.lnk from Startup to undo)");
                 if (!desk) Console.WriteLine("  shortcuts: not created");
             }
