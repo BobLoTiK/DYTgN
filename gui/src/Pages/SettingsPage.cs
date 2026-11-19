@@ -34,7 +34,7 @@ namespace NetSuite
             tAutostart.BackColor = Theme.Card;
             tAutostart.Toggled += delegate { ApplyAutostart(); };
             startCard.Controls.Add(tAutostart);
-            lAutostart = CardLabel(startCard, "Автозапуск при входе в Windows", 50);
+            lAutostart = CardLabel(startCard, "Поднимать сеть при входе в Windows (autostart.vbs)", 50);
             tKeepalive = new Toggle();
             tKeepalive.BackColor = Theme.Card;
             tKeepalive.Toggled += delegate { ApplyKeepalive(); };
@@ -277,23 +277,26 @@ namespace NetSuite
                 });
         }
 
+        // The running exe is locked, so the rebuild has to happen after this window exits:
+        // hand a tiny waiter to cmd, close, let it build, and it re-opens the fresh exe.
         void Rebuild()
         {
-            Log.Step("▶ пересборка GUI");
-            Run.Start("powershell.exe", "-NoProfile -ExecutionPolicy Bypass -File \"" + Paths.InRepo("gui\\build.ps1") + "\"",
-                delegate (string line) { try { BeginInvoke(new Action(delegate { Log.Write("  " + line, Theme.Muted); })); } catch { } },
-                delegate (int code)
-                {
-                    try
-                    {
-                        BeginInvoke(new Action(delegate
-                        {
-                            if (code == 0) Log.Good("сборка прошла, перезапустите окно чтобы увидеть новый exe");
-                            else Log.Bad("сборка упала, код " + code);
-                        }));
-                    }
-                    catch { }
-                });
+            Log.Step("пересборка GUI: окно закроется, соберётся заново и откроется");
+            string exe = System.Windows.Forms.Application.ExecutablePath;
+            string build = Paths.InRepo("gui\\build.ps1");
+            string log = Path.Combine(Paths.RepoRoot, "logs", "gui-build.log");
+            string cmd = "/c timeout /t 2 >nul & powershell -NoProfile -ExecutionPolicy Bypass -File \"" + build +
+                         "\" > \"" + log + "\" 2>&1 & start \"\" \"" + exe + "\"";
+            try
+            {
+                ProcessStartInfo psi = new ProcessStartInfo("cmd.exe", cmd);
+                psi.UseShellExecute = false;
+                psi.CreateNoWindow = true;
+                psi.WorkingDirectory = Paths.RepoRoot;
+                Process.Start(psi);
+            }
+            catch (Exception ex) { Log.Bad("не смог запустить пересборку: " + ex.Message); return; }
+            Host.HardExit();
         }
     }
 }

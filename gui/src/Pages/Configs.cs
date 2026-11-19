@@ -130,6 +130,7 @@ namespace NetSuite
             list.BackColor = Theme.Bg;
             list.Padding = new Padding(0);
             list.Resize += delegate { FitRows(); };
+            list.HandleCreated += delegate { Theme.DarkScroll(list); };
             Controls.Add(list);
 
             poll = new System.Windows.Forms.Timer();
@@ -155,7 +156,7 @@ namespace NetSuite
             bar.SetBounds(0, listTop - 8, w, 8);
             list.SetBounds(0, listTop, w, Math.Max(80, h - listTop - 26));
             lblHint.SetBounds(0, h - 20, w, 18);
-            lblHint.Text = "нужен UAC · каждый профиль ~5 с · после скана служба zapret возвращается как была";
+            lblHint.Text = "нужен UAC · профиль ~12 с, весь скан ~5 минут · служба zapret возвращается как была, даже если прервать";
             FitRows();
         }
 
@@ -265,7 +266,7 @@ namespace NetSuite
                 if (total > 0) bar.Value = Math.Min(1.0, (index + 0.5) / total);
                 lblProgress.Text = done ? "готово" : string.Format("{0}/{1} · {2}", index, total, cur);
                 object[] results = null;
-                if (d.TryGetValue("results", out o) && o != null) results = o as object[];
+                if (d.TryGetValue("results", out o) && o != null) results = AsArray(o);
                 if (results != null) BuildRows(results);
             }
             catch { }
@@ -281,9 +282,13 @@ namespace NetSuite
                 if (!File.Exists(f)) { lblProgress.Text = "результатов ещё нет — нажмите «Сканировать все»"; return; }
                 Dictionary<string, object> d = new JavaScriptSerializer().Deserialize<Dictionary<string, object>>(File.ReadAllText(f, Encoding.UTF8));
                 object o;
-                if (d == null || !d.TryGetValue("results", out o) || o == null) return;
-                object[] results = o as object[];
-                if (results == null) return;
+                if (d == null || !d.TryGetValue("results", out o) || o == null)
+                {
+                    Log.Warn("в результатах скана нет списка профилей");
+                    return;
+                }
+                object[] results = AsArray(o);
+                if (results == null || results.Length == 0) return;
                 BuildRows(results);
                 object b;
                 string best = d.TryGetValue("best", out b) && b != null ? Convert.ToString(b) : "";
@@ -326,6 +331,20 @@ namespace NetSuite
             }
             list.ResumeLayout();
             shownCount = hits.Count;
+        }
+
+        // JavaScriptSerializer may hand back ArrayList or object[] depending on the
+        // shape of the json, so never cast blindly - that silently swallowed all rows.
+        static object[] AsArray(object o)
+        {
+            if (o == null) return null;
+            object[] arr = o as object[];
+            if (arr != null) return arr;
+            System.Collections.IEnumerable en = o as System.Collections.IEnumerable;
+            if (en == null || o is string) return null;
+            List<object> items = new List<object>();
+            foreach (object x in en) items.Add(x);
+            return items.ToArray();
         }
 
         static string Str(Dictionary<string, object> d, string k, string fallback)

@@ -186,21 +186,15 @@ namespace NetSuite
                 List<string> servers = new List<string>(p.Servers);
                 req["dhcp"] = servers.Count == 0;
                 req["servers"] = servers.ToArray();
+                if (wantDoh) req["dohTemplate"] = p.Doh;
                 Dictionary<string, object> res;
                 string err;
-                bool ok = Elev.Ask("dns", req, 60000, out res, out err);
+                bool ok = Elev.Ask("dns", req, 90000, out res, out err);
                 string adapt = Elev.Json(res, "adapter", "");
+                string before = Elev.Json(res, "before", "");
+                string after = Elev.Json(res, "after", "");
+                string dohState = Elev.Json(res, "doh", "");
                 string log = Elev.Json(res, "log", "");
-                string dohErr = "";
-                bool dohOk = true;
-                if (ok && wantDoh)
-                {
-                    Dictionary<string, object> req2 = new Dictionary<string, object>();
-                    req2["server"] = p.Servers[0];
-                    req2["template"] = p.Doh;
-                    Dictionary<string, object> res2;
-                    dohOk = Elev.Ask("doh", req2, 60000, out res2, out dohErr);
-                }
                 try
                 {
                     BeginInvoke(new Action(delegate
@@ -209,8 +203,13 @@ namespace NetSuite
                         bApply.Enabled = true;
                         if (ok)
                         {
-                            Log.Good("DNS применён: " + p.Name + (adapt.Length > 0 ? " на " + adapt : ""));
-                            lblStatus.Text = "применено: " + p.Name + (wantDoh ? (dohOk ? " · DoH зарегистрирован" : " · DoH не включился") : "");
+                            string tail = "";
+                            if (after.Length > 0) tail = " · " + after;
+                            else if (before.Length > 0) tail = " · было " + before;
+                            Log.Good("DNS применён: " + p.Name + (adapt.Length > 0 ? " на " + adapt : "") + tail);
+                            string dohText = "";
+                            if (wantDoh) dohText = dohState == "on" ? " · DoH включён" : " · DoH не встал";
+                            lblStatus.Text = "применено: " + p.Name + " на " + adapt + tail + dohText;
                         }
                         else
                         {

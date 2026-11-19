@@ -30,6 +30,36 @@ namespace NetSuite
                 return;
             }
 
+            // Open straight on a given page (debug aid): --page configs
+            if (args.Length >= 2 && args[0] == "--page")
+            {
+                Paths.Init();
+                Application.EnableVisualStyles();
+                Application.SetCompatibleTextRenderingDefault(false);
+                MainForm pf = new MainForm();
+                pf.Show();
+                pf.ShowPage(args[1]);
+                Application.Run(pf);
+                return;
+            }
+
+            // Scripted action test: press the button from the command line.
+            if (args.Length >= 2 && args[0] == "--act")
+            {
+                Paths.Init();
+                Application.EnableVisualStyles();
+                Application.SetCompatibleTextRenderingDefault(false);
+                MainForm f = new MainForm();
+                f.ShowInTaskbar = false;
+                f.Opacity = 0.02;
+                f.Show();
+                Application.DoEvents();
+                bool ok = f.RunActionAndWait(args[1], "cli " + args[1], 180000);
+                Log.Write("cli action " + args[1] + ": " + (ok ? "finished" : "timeout"), System.Drawing.Color.Gray);
+                f.HardExit();
+                return;
+            }
+
             // Self-test mode: render every page to PNG and exit. No clicks needed.
             if (args.Length >= 2 && args[0] == "--shot")
             {

@@ -166,6 +166,20 @@ namespace NetSuite
             Activate();
         }
 
+        // Scripted button press for tests: run the action, pump messages until done.
+        public bool RunActionAndWait(string action, string label, int timeoutMs)
+        {
+            RunAction(action, label);
+            DateTime until = DateTime.Now.AddMilliseconds(timeoutMs);
+            while (busy && DateTime.Now < until)
+            {
+                Application.DoEvents();
+                Thread.Sleep(120);
+            }
+            Application.DoEvents();
+            return !busy;
+        }
+
         public void HardExit()
         {
             exiting = true;

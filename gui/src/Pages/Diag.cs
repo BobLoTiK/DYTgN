@@ -118,7 +118,7 @@ namespace NetSuite
             bRun = new Btn();
             bRun.Text = "Проверить всё";
             bRun.Style = BtnStyle.Primary;
-            bRun.Click += delegate { Start(); };
+            bRun.Click += delegate { Start(true); };
             Controls.Add(bRun);
 
             lblStatus = new Label();
@@ -152,17 +152,19 @@ namespace NetSuite
 
         public override void OnShow()
         {
-            if (!everRun) Start();
+            if (!everRun) Start(false);
         }
 
-        void Start()
+        void Start(bool withSpeed)
         {
             if (running) return;
             running = true;
             everRun = true;
             bRun.Enabled = false;
             bRun.Text = "Проверяю…";
-            lblStatus.Text = "иду по пунктам: пинг, скорость (~10 с), дата-центры, сайты";
+            lblStatus.Text = withSpeed
+                ? "иду по пунктам: пинг, скорость (~10 с), дата-центры, сайты"
+                : "иду по пунктам: пинг, дата-центры, сайты; скорость качает трафик — только по кнопке";
             Log.Step("▶ диагностика сети");
 
             Thread t = new Thread(delegate ()
@@ -170,11 +172,19 @@ namespace NetSuite
                 int ping = Probe.PingMs("1.1.1.1", 3000);
                 SetText(tPing, ping > 0 ? ping + " мс" : "нет", ping > 0 && ping < 60 ? Theme.Ok : (ping > 0 ? Theme.Warn : Theme.Err), "1.1.1.1");
 
-                double down = Probe.DownloadMbps(6);
-                SetText(tDown, down > 0 ? string.Format("{0:0.0}", down) : "—", Theme.Text, "Мбит/с, 6 секунд");
+                if (withSpeed)
+                {
+                    double down = Probe.DownloadMbps(6);
+                    SetText(tDown, down > 0 ? string.Format("{0:0.0}", down) : "—", Theme.Text, "Мбит/с, 6 секунд");
 
-                double up = Probe.UploadMbps(5);
-                SetText(tUp, up > 0 ? string.Format("{0:0.0}", up) : "—", Theme.Text, "Мбит/с, 5 секунд");
+                    double up = Probe.UploadMbps(5);
+                    SetText(tUp, up > 0 ? string.Format("{0:0.0}", up) : "—", Theme.Text, "Мбит/с, 5 секунд");
+                }
+                else
+                {
+                    SetText(tDown, "—", Theme.Muted, "по кнопке: качает ~50 МБ");
+                    SetText(tUp, "—", Theme.Muted, "по кнопке: отдаёт ~6 МБ");
+                }
 
                 int okDc = 0, bestMs = -1;
                 for (int i = 0; i < 5; i++)
@@ -183,7 +193,8 @@ namespace NetSuite
                     SetDc(i, ms);
                     if (ms > 0) { okDc++; if (bestMs < 0 || ms < bestMs) bestMs = ms; }
                 }
-                SetText(tTg, okDc + "/5", okDc == 5 ? Theme.Ok : (okDc > 0 ? Theme.Warn : Theme.Err), bestMs > 0 ? "лучший " + bestMs + " мс" : "недоступны");
+                SetText(tTg, okDc + "/5", okDc == 5 ? Theme.Ok : (okDc > 0 ? Theme.Warn : Theme.Muted),
+                    bestMs > 0 ? "лучший " + bestMs + " мс" : "напрямую нет — норма при TgWsProxy");
 
                 for (int i = 0; i < 4; i++)
                 {
@@ -244,9 +255,11 @@ namespace NetSuite
                 BeginInvoke(new Action(delegate
                 {
                     bool ok = code == "200" || code == "204" || code == "301" || code == "302";
-                    sDots[i].Color = ok ? Theme.Ok : Theme.Err;
-                    sVals[i].Text = code;
-                    sVals[i].ForeColor = ok ? Theme.Ok : Theme.Err;
+                    bool answered = code == "401" || code == "403" || code == "404" || code == "429";
+                    Color c = ok ? Theme.Ok : (answered ? Theme.Warn : Theme.Err);
+                    sDots[i].Color = c;
+                    sVals[i].Text = answered ? code + " (отвечает)" : code;
+                    sVals[i].ForeColor = c;
                 }));
             }
             catch { }

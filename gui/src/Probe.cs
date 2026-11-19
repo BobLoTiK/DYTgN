@@ -282,7 +282,9 @@ namespace NetSuite
             string r = Curl("-s -o NUL -A \"net-suite-gui/1.0\" --max-time " + seconds +
                 " -X POST --data-binary \"@" + file + "\" -w \"%{size_upload} %{time_total}\" https://speed.cloudflare.com/__up",
                 (seconds + 5) * 1000);
-            return ParseRate(r);
+            double mbps = ParseRate(r);
+            try { File.Delete(file); } catch { }
+            return mbps;
         }
 
         public static readonly string[][] TelegramDc = new string[][]

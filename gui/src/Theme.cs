@@ -9,6 +9,16 @@ namespace NetSuite
     // hand because WinForms in a dark theme looks like 1998 if you let it.
     static class Theme
     {
+        [System.Runtime.InteropServices.DllImport("uxtheme.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+        static extern int SetWindowTheme(IntPtr hWnd, string app, string idlist);
+
+        // Native scrollbars in a scrollable panel are bright white by default.
+        // The explorer dark-mode theme paints them dark, no custom scrollbar needed.
+        public static void DarkScroll(Control c)
+        {
+            try { if (c != null && c.IsHandleCreated) SetWindowTheme(c.Handle, "DarkMode_Explorer", null); } catch { }
+        }
+
         public static readonly Color Bg = Color.FromArgb(0x11, 0x13, 0x18);
         public static readonly Color Sidebar = Color.FromArgb(0x15, 0x18, 0x1F);
         public static readonly Color Card = Color.FromArgb(0x1B, 0x1F, 0x28);
