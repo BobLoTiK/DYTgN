@@ -4,3 +4,6 @@ notion/*.log
 notion/*.bak
 notion-window-profile/
 *.old
+notion/config.json
+gui/obj/
+

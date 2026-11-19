@@ -75,6 +75,21 @@
 
 Когда всё уже работает, это занимает ~5 секунд и не требует прав администратора.
 
+## Пульт с окном
+
+`gui\NetSuite.exe` — та же логика, но окном: состояние четырёх частей обновляется каждые
+три секунды, кнопка «Включить всё» делает то же, что ярлык `Сеть вкл`, а вывод скриптов
+идёт в журнал прямо в окне. Плюс то, чего в консоли не было:
+
+- **Конфиги** — скан всех 20 профилей zapret с рейтингом по живым сайтам и временем
+  отклика; лучший ставится в службу одной кнопкой (`zapret\scan.ps1`).
+- **DNS** — смена DNS (Cloudflare, Google, Yandex, AdGuard, Xbox-DNS, DHCP) и DoH.
+- **Диагностика** — пинг, скорость вниз/вверх, доступность DC1–DC5 Telegram, коды
+  ответов сайтов напрямую.
+
+Сборка (нужен только .NET Framework 4.8, больше ничего): `powershell -ExecutionPolicy Bypass -File gui\build.ps1`.
+Готовый exe уже лежит в репозитории. Подробности — `gui\README.md`.
+
 ## Установка
 
 Скачать `net-suite-setup.exe` из [релиза](https://github.com/BobLoTiK/DYTgN/releases/latest),
@@ -169,7 +184,9 @@ powershell -ExecutionPolicy Bypass -File netsuite.ps1 -Action restart
 - `notion\` — рантайм туннеля: `sb-config.json`, `pacsrv.ps1`, `boot.vbs`, `watch.ps1`,
   `build-tuic.ps1` (поиск новой ноды), `build.ps1` (VLESS-фолбэк), `collect.ps1`
 - `zapret\` — проверка и подбор профиля zapret: `check.ps1` (жив ли профиль),
-  `pick.ps1` (перебор профилей + запись лучшего в службу), `pick.bat` (запуск с UAC)
+  `pick.ps1` (перебор профилей + запись лучшего в службу), `pick.bat` (запуск с UAC),
+  `scan.ps1` (перебор с рейтингом в json — для окна)
+- `gui\` — окно-пульт: `NetSuite.exe`, исходники в `gui\src`, сборка `gui\build.ps1`
 - `logs\` — журналы
 
 ## Ограничения

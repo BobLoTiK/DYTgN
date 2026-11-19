@@ -69,6 +69,16 @@ else {
     }
 }
 
+# the gui panel: a real exe, so the shortcut opens the window with no console flash
+$guiExe = Join-Path $root 'gui\NetSuite.exe'
+if (-not $NoDesktop -and (Test-Path $guiExe)) {
+    New-Link -Path (Join-Path $desk 'Сеть (пульт).lnk') -Target $guiExe -Arguments '' -Icon $appIcon -Description 'net-suite: окно с состоянием и одной кнопкой'
+}
+if ($NoDesktop) {
+    $guiLink = Join-Path $desk 'Сеть (пульт).lnk'
+    if (Test-Path $guiLink) { Remove-Item $guiLink -Force; Write-Host ("removed: {0}" -f $guiLink) }
+}
+
 if (-not $NoAutostart) {
     New-Link -Path $autostartLink -Target "$env:WINDIR\System32\wscript.exe" -Arguments "`"$root\autostart.vbs`"" -Icon $appIcon -Description 'Запуск сетевого набора при входе'
 }
