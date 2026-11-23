@@ -12,7 +12,10 @@ if (-not (Test-Path $csc)) { throw "csc.exe not found: $csc" }
 if (-not (Test-Path $src)) { throw "source not found: $src" }
 New-Item -ItemType Directory -Force -Path $outDir | Out-Null
 
+# System.IO.Compression.FileSystem gives the installer ZipFile, so it unpacks the repo
+# archive itself instead of depending on tar.exe being present.
 $args = @('/nologo', '/target:exe', '/platform:anycpu', '/optimize+', '/utf8output', '/codepage:65001',
+    '/r:System.IO.Compression.dll', '/r:System.IO.Compression.FileSystem.dll',
     ('/out:"{0}"' -f $out))
 if (Test-Path $icon) { $args += ('/win32icon:"{0}"' -f $icon) }
 $args += ('"{0}"' -f $src)

@@ -1,11 +1,17 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Net;
+using System.Threading;
 
 // net-suite bootstrapper.
-// 1) clones/updates the repository into %LOCALAPPDATA%\net-suite\app
-// 2) asks what to create (desktop shortcuts, autostart) and whether to start now
+// 1) gets the repository into %LOCALAPPDATA%\net-suite\app - with git when git is there,
+//    otherwise by downloading the GitHub archive (no git, no manual steps)
+// 2) asks what to create (the control-panel shortcut, autostart) and whether to start now
 // 3) runs setup.ps1 with those answers and shows the result
+//
+// debug switch: net-suite-setup.exe --fetch-only  - only download the repo, run nothing
 
 class Program
 {
@@ -15,6 +21,14 @@ class Program
     static int Main(string[] args)
     {
         try { Console.OutputEncoding = System.Text.Encoding.UTF8; } catch { }
+        try { ServicePointManager.SecurityProtocol = (SecurityProtocolType)3072; } catch { }
+
+        bool fetchOnly = false;
+        foreach (string a in args)
+        {
+            string s = a.Trim().ToLowerInvariant();
+            if (s == "--fetch-only" || s == "/fetch-only") fetchOnly = true;
+        }
 
         try
         {
@@ -33,33 +47,23 @@ class Program
             Console.WriteLine();
 
             bool existing = File.Exists(setup);
-            if (existing)
+            if (!Fetch(target, setup, existing))
             {
-                Console.WriteLine("[1/3] repo already here, updating");
-                int upd = Run("git", "-C \"" + target + "\" pull --ff-only", null);
-                if (upd != 0) Console.WriteLine("      update skipped (offline or git needs access)");
+                Pause();
+                return 1;
             }
-            else
+
+            if (fetchOnly)
             {
-                Console.WriteLine("[1/3] downloading repo, ~130 MB, once");
-                Directory.CreateDirectory(target);
-                int rc = Run("git", "clone --depth 1 \"" + RepoUrl + "\" \"" + target + "\"", null);
-                if (rc != 0 || !File.Exists(setup))
-                {
-                    Console.WriteLine();
-                    Console.WriteLine("  Clone failed: git is missing or this account has no access.");
-                    Console.WriteLine("  The repo is public, so git needs no account - only git itself.");
-                    Console.WriteLine("  Fallback: download " + ZipUrl);
-                    Console.WriteLine("  unpack anywhere and run install.bat from that folder.");
-                    Pause();
-                    return 1;
-                }
+                Console.WriteLine("  fetch only: repository is in place, nothing else was run");
+                Pause();
+                return 0;
             }
 
             Console.WriteLine();
             Console.WriteLine("[2/3] a few questions, Enter = yes");
             Console.WriteLine();
-            bool desk = Ask("  Ярлыки на рабочем столе (Сеть вкл / выкл / статус / Notion)?", true);
+            bool desk = Ask("  Ярлык «Сеть (пульт)» на рабочем столе?", true);
             bool auto = Ask("  Добавить в автозапуск при входе в Windows?", true);
             bool task = Ask("  Проверять туннель каждые 10 минут (задача планировщика)?", true);
             bool start = Ask("  Запустить всё сразу?", true);
@@ -88,7 +92,7 @@ class Program
                 Console.WriteLine("  window:  gui\\NetSuite.exe   (or the shortcut on the desktop)");
                 Console.WriteLine("  no window needed: on.bat / off.bat / status.bat");
                 if (auto) Console.WriteLine("  autostart: on (remove net-suite.lnk from Startup to undo)");
-                if (!desk) Console.WriteLine("  shortcuts: not created");
+                if (!desk) Console.WriteLine("  desktop shortcut: not created");
             }
             Pause();
             return rc2;
@@ -101,25 +105,233 @@ class Program
         }
     }
 
+    // Gets the repo into target. git first (cheap updates), archive as the fallback that
+    // needs nothing installed. Returns false only when both ways are gone.
+    static bool Fetch(string target, string setup, bool existing)
+    {
+        bool git = HaveGit();
+
+        if (existing)
+        {
+            if (git)
+            {
+                Console.WriteLine("[1/3] repo already here, updating");
+                int upd = Run("git", "-C \"" + target + "\" pull --ff-only", null);
+                if (upd == 0) return true;
+                Console.WriteLine("      git pull did not work, refreshing from the archive");
+            }
+            else
+            {
+                Console.WriteLine("[1/3] repo already here, no git - refreshing from the archive");
+            }
+            return FromArchive(target, setup);
+        }
+
+        Directory.CreateDirectory(target);
+
+        if (git)
+        {
+            Console.WriteLine("[1/3] downloading repo with git, ~130 MB, once");
+            int rc = Run("git", "clone --depth 1 \"" + RepoUrl + "\" \"" + target + "\"", null);
+            if (rc == 0 && File.Exists(setup)) return true;
+            Console.WriteLine("      git clone did not work, switching to the archive");
+        }
+        else
+        {
+            Console.WriteLine("[1/3] git not found on this PC - that is fine, downloading the archive");
+        }
+
+        // a half-done clone would make later git calls fail; the archive does not need it
+        if (!File.Exists(setup)) DropBrokenGit(target);
+        return FromArchive(target, setup);
+    }
+
+    static bool FromArchive(string target, string setup)
+    {
+        string zip = Path.Combine(Path.GetTempPath(), "net-suite-repo.zip");
+        Console.WriteLine("      source: " + ZipUrl);
+        if (!DownloadZip(zip)) return false;
+
+        Console.WriteLine("      unpacking");
+        bool ok = ExtractZip(zip, target);
+        try { File.Delete(zip); } catch { }
+
+        if (!ok || !File.Exists(setup))
+        {
+            Console.WriteLine();
+            Console.WriteLine("  The archive could not be unpacked automatically.");
+            Console.WriteLine("  Fallback: download " + ZipUrl);
+            Console.WriteLine("  unpack anywhere and run install.bat from that folder.");
+            return false;
+        }
+        Console.WriteLine("      repo is in place");
+        return true;
+    }
+
+    static bool DownloadZip(string zipPath)
+    {
+        for (int attempt = 1; attempt <= 2; attempt++)
+        {
+            try
+            {
+                if (File.Exists(zipPath)) File.Delete(zipPath);
+                using (WebClient wc = new WebClient())
+                {
+                    wc.Headers.Add("User-Agent", "net-suite-installer");
+                    wc.DownloadProgressChanged += delegate (object s, DownloadProgressChangedEventArgs e)
+                    {
+                        double got = e.BytesReceived / 1048576.0;
+                        double all = e.TotalBytesToReceive / 1048576.0;
+                        if (all > 0)
+                            Console.Write("\r      {0,3}%  {1:0.0} / {2:0.0} MB   ", e.ProgressPercentage, got, all);
+                    };
+                    wc.DownloadFileAsync(new Uri(ZipUrl), zipPath);
+                    while (wc.IsBusy) Thread.Sleep(200);
+                }
+                if (File.Exists(zipPath) && new FileInfo(zipPath).Length > 1000000)
+                {
+                    Console.WriteLine();
+                    return true;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine();
+                Console.WriteLine("      download failed: " + ex.Message);
+            }
+            try { if (File.Exists(zipPath)) File.Delete(zipPath); } catch { }
+            if (attempt == 1) Console.WriteLine("      trying once more");
+            Thread.Sleep(1500);
+        }
+        return false;
+    }
+
+    static bool ExtractZip(string zip, string target)
+    {
+        string tmp = Path.Combine(Path.GetTempPath(), "ns_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tmp);
+        try
+        {
+            bool unpacked = false;
+            try
+            {
+                System.IO.Compression.ZipFile.ExtractToDirectory(zip, tmp);
+                unpacked = true;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("      .NET unzip failed (" + ex.GetType().Name + "), trying tar");
+            }
+            if (!unpacked)
+            {
+                if (Run("tar", "-xf \"" + zip + "\" -C \"" + tmp + "\"", null) != 0) return false;
+            }
+
+            string src = FindRepoRoot(tmp);
+            if (src == null)
+            {
+                Console.WriteLine("      setup.ps1 is not inside the archive");
+                return false;
+            }
+            CopyDir(src, target);
+            return true;
+        }
+        finally
+        {
+            try { Directory.Delete(tmp, true); } catch { }
+        }
+    }
+
+    // the archive has one top folder (DYTgN-main); find the level that holds setup.ps1
+    static string FindRepoRoot(string dir)
+    {
+        if (File.Exists(Path.Combine(dir, "setup.ps1"))) return dir;
+        string[] subs = Directory.GetDirectories(dir);
+        foreach (string d in subs)
+        {
+            if (File.Exists(Path.Combine(d, "setup.ps1"))) return d;
+        }
+        foreach (string d in subs)
+        {
+            string inner = FindRepoRoot(d);
+            if (inner != null) return inner;
+        }
+        return null;
+    }
+
+    static void CopyDir(string src, string dst)
+    {
+        Directory.CreateDirectory(dst);
+        foreach (string file in Directory.GetFiles(src))
+        {
+            string name = Path.GetFileName(file);
+            if (string.Equals(name, ".git", StringComparison.OrdinalIgnoreCase)) continue;
+            File.Copy(file, Path.Combine(dst, name), true);
+        }
+        foreach (string dir in Directory.GetDirectories(src))
+        {
+            string name = Path.GetFileName(dir);
+            if (string.Equals(name, ".git", StringComparison.OrdinalIgnoreCase)) continue;
+            CopyDir(dir, Path.Combine(dst, name));
+        }
+    }
+
+    static void DropBrokenGit(string target)
+    {
+        try
+        {
+            string g = Path.Combine(target, ".git");
+            if (Directory.Exists(g))
+            {
+                Directory.Delete(g, true);
+                Console.WriteLine("      removed a half-finished .git folder");
+            }
+        }
+        catch { }
+    }
+
+    static bool HaveGit()
+    {
+        try
+        {
+            ProcessStartInfo psi = new ProcessStartInfo("git", "--version");
+            psi.UseShellExecute = false;
+            psi.CreateNoWindow = true;
+            psi.RedirectStandardOutput = true;
+            psi.RedirectStandardError = true;
+            using (Process p = Process.Start(psi))
+            {
+                p.StandardOutput.ReadToEnd();
+                p.StandardError.ReadToEnd();
+                p.WaitForExit();
+                return p.ExitCode == 0;
+            }
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     static bool Ask(string question, bool def)
     {
         Console.Write(question + (def ? " [Y/n] " : " [y/N] "));
         string s = Console.ReadLine();
         if (string.IsNullOrWhiteSpace(s)) return def;
         s = s.Trim().ToLowerInvariant();
-        if (s == "y" || s == "yes" || s == "д" || s == "да" || s == "1" || s == "+") return true;
+        if (s == "y" || s == "yes" || s == "д" || s == "да" || s == "1" || s == "+" || s == "l") return true;
         if (s == "n" || s == "no" || s == "н" || s == "нет" || s == "0" || s == "-") return false;
         return def;
     }
 
     static int Run(string exe, string arguments, string workdir)
     {
-        var psi = new ProcessStartInfo(exe, arguments);
+        ProcessStartInfo psi = new ProcessStartInfo(exe, arguments);
         psi.UseShellExecute = false;
         if (!string.IsNullOrEmpty(workdir)) psi.WorkingDirectory = workdir;
         try
         {
-            using (var p = Process.Start(psi))
+            using (Process p = Process.Start(psi))
             {
                 p.WaitForExit();
                 return p.ExitCode;
