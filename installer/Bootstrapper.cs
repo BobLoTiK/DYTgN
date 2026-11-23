@@ -18,6 +18,11 @@ class Program
     const string RepoUrl = "https://github.com/BobLoTiK/DYTgN.git";
     const string ZipUrl = "https://github.com/BobLoTiK/DYTgN/archive/refs/heads/main.zip";
 
+    // files that stayed locked while the archive was copied over a running install
+    static List<string> skipped = new List<string>();
+    // the panel is closed for the update and started again at the end
+    static bool panelWasRunning;
+
     static int Main(string[] args)
     {
         try { Console.OutputEncoding = System.Text.Encoding.UTF8; } catch { }
@@ -93,6 +98,7 @@ class Program
                 Console.WriteLine("  no window needed: on.bat / off.bat / status.bat");
                 if (auto) Console.WriteLine("  autostart: on (remove net-suite.lnk from Startup to undo)");
                 if (!desk) Console.WriteLine("  desktop shortcut: not created");
+                if (panelWasRunning) ReopenPanel(target);
             }
             Pause();
             return rc2;
@@ -102,6 +108,26 @@ class Program
             Console.WriteLine("  install failed: " + ex.Message);
             Pause();
             return 1;
+        }
+    }
+
+    // the panel was open before the update - bring it back, so an update is not a way to
+    // lose the window you were looking at
+    static void ReopenPanel(string target)
+    {
+        try
+        {
+            string exe = Path.Combine(target, "gui\\NetSuite.exe");
+            if (!File.Exists(exe)) return;
+            ProcessStartInfo psi = new ProcessStartInfo(exe);
+            psi.WorkingDirectory = target;
+            psi.UseShellExecute = true;
+            Process.Start(psi);
+            Console.WriteLine("  window:  opened again");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("  window:  could not reopen (" + ex.Message + ")");
         }
     }
 
@@ -152,7 +178,12 @@ class Program
         Console.WriteLine("      source: " + ZipUrl);
         if (!DownloadZip(zip)) return false;
 
+        // an update lands on top of a running install: our own window and the engines hold
+        // their exe files open, so they have to let go before the files can be replaced
+        CloseRunningPanel();
+
         Console.WriteLine("      unpacking");
+        skipped.Clear();
         bool ok = ExtractZip(zip, target);
         try { File.Delete(zip); } catch { }
 
@@ -164,8 +195,51 @@ class Program
             Console.WriteLine("  unpack anywhere and run install.bat from that folder.");
             return false;
         }
+        if (skipped.Count > 0)
+        {
+            Console.WriteLine();
+            Console.WriteLine("  these files were busy and stayed as they were:");
+            int shown = 0;
+            foreach (string f in skipped)
+            {
+                Console.WriteLine("      " + f);
+                if (++shown >= 5) { Console.WriteLine("      ..."); break; }
+            }
+            Console.WriteLine("  that is normal while the engines run; close net-suite and run the installer again");
+        }
         Console.WriteLine("      repo is in place");
         return true;
+    }
+
+    // The panel is our own window and it lives in the tray: closing it politely does nothing,
+    // so it is ended. The engines are left alone - their files are simply skipped above.
+    static void CloseRunningPanel()
+    {
+        try
+        {
+            Process[] running = Process.GetProcessesByName("NetSuite");
+            if (running.Length == 0) return;
+            panelWasRunning = true;
+            foreach (Process p in running)
+            {
+                try { p.CloseMainWindow(); } catch { }
+            }
+            Thread.Sleep(1500);
+            foreach (Process p in running)
+            {
+                try
+                {
+                    if (!p.HasExited)
+                    {
+                        p.Kill();
+                        p.WaitForExit(5000);
+                    }
+                }
+                catch { }
+            }
+            Console.WriteLine("      closed the running panel (it holds gui\\NetSuite.exe open)");
+        }
+        catch { }
     }
 
     static bool DownloadZip(string zipPath)
@@ -266,7 +340,9 @@ class Program
         {
             string name = Path.GetFileName(file);
             if (string.Equals(name, ".git", StringComparison.OrdinalIgnoreCase)) continue;
-            File.Copy(file, Path.Combine(dst, name), true);
+            try { File.Copy(file, Path.Combine(dst, name), true); }
+            catch (IOException) { skipped.Add(name); }
+            catch (UnauthorizedAccessException) { skipped.Add(name); }
         }
         foreach (string dir in Directory.GetDirectories(src))
         {
